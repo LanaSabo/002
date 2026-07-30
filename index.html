@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoManufaktur — Aufnahme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+
+  /* ============================================================
+     EDITIERBARE WERTE — pro Talisman/Produkt hier anpassen
+     ============================================================
+     1. AUDIO_SRC weiter unten im <audio> Tag ersetzen
+     2. Textinhalte in den Elementen mit data-edit="..." Kommentar
+     3. --accent-hue kann pro Edition leicht verschoben werden (siehe unten)
+  ============================================================ */
+
+  :root {
+    --void: #0a0908;        /* Untergrund, warmes Obsidian-Schwarz */
+    --void-2: #131110;      /* leicht abgehoben, für Karten/Flächen */
+    --brass: #a9824c;       /* gealtertes Messing — Haupt-Akzent */
+    --brass-bright: #c9a06a;
+    --bone: #e8e1d3;        /* Text, warmes Knochenweiß */
+    --bone-dim: #9c948866;  /* gedämpfter Text */
+    --sage: #5c7a72;        /* Resonanz/Wasser-Ton, für den Ring-Glow */
+    --ember: #7a2e1d;       /* seltener Ritual-Akzent, sparsam einsetzen */
+    --line: rgba(232, 225, 211, 0.10);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: var(--void);
+    color: var(--bone);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7vh 1.5rem 3rem;
+    position: relative;
+  }
+
+  /* feiner Materialtextur-Grain, damit Schwarz nicht flach wirkt */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--brass);
+    text-align: center;
+    z-index: 2;
+  }
+
+  .edition {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--bone-dim);
+    margin-top: 0.4rem;
+    text-align: center;
+    z-index: 2;
+  }
+
+  /* ---------- Der Ring: Visualisierung + Tap-Ziel in einem ---------- */
+
+  .ring-wrap {
+    position: relative;
+    width: min(78vw, 320px);
+    height: min(78vw, 320px);
+    margin: 6vh 0 5vh;
+    z-index: 2;
+  }
+
+  canvas#cymatics {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: pointer;
+  }
+
+  .ring-wrap .hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .hint .glyph {
+    width: 22px;
+    height: 22px;
+    opacity: 0.9;
+    transition: opacity 0.4s ease;
+  }
+
+  .hint .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--bone);
+    opacity: 0.55;
+    margin-top: 0.9rem;
+    transition: opacity 0.4s ease;
+  }
+
+  .ring-wrap.playing .hint { opacity: 0; }
+
+  /* ---------- Textblock ---------- */
+
+  .content {
+    text-align: center;
+    max-width: 420px;
+    z-index: 2;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+    line-height: 1.15;
+    color: var(--bone);
+  }
+
+  .description {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--bone-dim);
+    font-weight: 400;
+  }
+
+  .meta {
+    display: flex;
+    justify-content: center;
+    gap: 1.6rem;
+    margin-top: 2.2rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .meta-item {
+    text-align: left;
+  }
+
+  .meta-item .k {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brass);
+    opacity: 0.85;
+  }
+
+  .meta-item .v {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--bone);
+    margin-top: 0.2rem;
+  }
+
+  footer {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--bone-dim);
+    opacity: 0.5;
+    z-index: 2;
+    margin-top: 4vh;
+  }
+
+  /* ---------- QR-Code Plakette ---------- */
+
+  .qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 3.5vh;
+    z-index: 2;
+  }
+
+  .qr-frame {
+    padding: 10px;
+    background: #f4f1ea;
+    border: 1px solid var(--brass);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(169,130,76,0.15), 0 0 24px rgba(169,130,76,0.08);
+    line-height: 0;
+  }
+
+  .qr-frame canvas {
+    display: block;
+    width: 128px;
+    height: 128px;
+  }
+
+  .qr-caption {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--bone-dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    canvas#cymatics { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- data-edit: wird automatisch aus dem Repository-/Ordnernamen befüllt -->
+  <div class="edition" id="repoLabel">—</div>
+
+  <div class="ring-wrap" id="ringWrap">
+    <canvas id="cymatics"></canvas>
+    <div class="hint">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="color:var(--bone)">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+      <div class="label">Berühren zum Hören</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- data-edit: Titel des Stücks -->
+    <h1>Aufnahme Testaudio</h1>
+  </div>
+
+  <div class="qr-wrap">
+    <div class="qr-frame">
+      <canvas id="qrCanvas"></canvas>
+    </div>
+    <div class="qr-caption">Diese Seite</div>
+  </div>
+
+  <footer>MoManufaktur - Digital</footer>
+
+  <audio id="audio" src="audio.mp3" preload="auto" loop></audio>
+
+  <script>
+    /* -----------------------------------------------------------
+       Liest den Repository-/Ordnernamen automatisch aus der URL
+       aus und zeigt ihn als Kennzeichnung + Browser-Tab-Titel an.
+
+       Beispiel: https://lanasabo.github.io/001/  ->  "001"
+       Beispiel: https://lanasabo.github.io/talismane/007/ -> "007"
+       (nimmt den letzten nicht-leeren Pfad-Abschnitt vor der Datei)
+    ------------------------------------------------------------ */
+    (function setLabelFromRepo() {
+      const parts = window.location.pathname
+        .split('/')
+        .filter(p => p.length > 0 && !p.includes('.')); // Dateinamen wie index.html rausfiltern
+
+      const name = parts.length > 0 ? parts[parts.length - 1] : 'MoManufaktur';
+
+      document.getElementById('repoLabel').textContent = name;
+      document.title = `MoManufaktur — ${name}`;
+    })();
+
+    /* -----------------------------------------------------------
+       QR-Code der aktuellen Seiten-URL generieren.
+       Nutzt die Bibliothek "qrcode-generator" (per CDN geladen).
+       Achtung: lokal per file:// geöffnet zeigt der QR die
+       file://-Adresse — funktioniert erst korrekt, sobald die
+       Seite live auf GitHub Pages liegt.
+    ------------------------------------------------------------ */
+    (function renderQR() {
+      const url = window.location.href;
+      const qr = qrcode(0, 'M'); // Typ 0 = automatische Größe, Fehlerkorrektur M
+      qr.addData(url);
+      qr.make();
+
+      const count = qr.getModuleCount();
+      const canvas = document.getElementById('qrCanvas');
+      const dpr = window.devicePixelRatio || 1;
+      const displaySize = 128;
+      const size = displaySize * dpr;
+      const cell = size / count;
+
+      canvas.width = size;
+      canvas.height = size;
+
+      const qctx = canvas.getContext('2d');
+      qctx.fillStyle = '#f4f1ea';
+      qctx.fillRect(0, 0, size, size);
+      qctx.fillStyle = '#141110';
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (qr.isDark(r, c)) {
+            qctx.fillRect(Math.floor(c * cell), Math.floor(r * cell), Math.ceil(cell), Math.ceil(cell));
+          }
+        }
+      }
+    })();
+
+    const audio = document.getElementById('audio');
+    const canvas = document.getElementById('cymatics');
+    const ringWrap = document.getElementById('ringWrap');
+    const ctx = canvas.getContext('2d');
+
+    let audioCtx, analyser, source, dataArray;
+    let playing = false;
+    let idleT = 0;
+
+    function sizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', sizeCanvas);
+    sizeCanvas();
+
+    function setupAnalyser() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source = audioCtx.createMediaElementSource(audio);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+    }
+
+    function draw() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const cx = w / 2, cy = h / 2;
+      const maxR = Math.min(w, h) / 2 - 4;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const brass = getComputedStyle(document.documentElement).getPropertyValue('--brass').trim();
+      const sage = getComputedStyle(document.documentElement).getPropertyValue('--sage').trim();
+
+      const rings = 10;
+      let amp = new Array(rings).fill(0);
+
+      if (playing && analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        for (let i = 0; i < rings; i++) {
+          const start = Math.floor((i / rings) * dataArray.length * 0.6);
+          const end = Math.floor(((i + 1) / rings) * dataArray.length * 0.6);
+          let sum = 0;
+          for (let j = start; j < end; j++) sum += dataArray[j];
+          amp[i] = (sum / (end - start || 1)) / 255;
+        }
+      } else {
+        idleT += 0.012;
+        for (let i = 0; i < rings; i++) {
+          amp[i] = 0.12 + 0.05 * Math.sin(idleT * 1.4 + i * 0.7);
+        }
+      }
+
+      for (let i = rings; i >= 1; i--) {
+        const base = (i / rings) * maxR;
+        const wobble = amp[rings - i] * (maxR / rings) * 1.6;
+        const r = Math.max(2, base - wobble * 0.3 + wobble);
+        const alpha = 0.10 + (amp[rings - i] * 0.5);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = i % 3 === 0
+          ? `rgba(169,130,76,${alpha})`
+          : `rgba(92,122,114,${alpha * 0.8})`;
+        ctx.lineWidth = playing ? 1.4 : 1;
+        ctx.stroke();
+      }
+
+      // zentraler Kern
+      const coreAmp = playing ? (amp[0] + amp[1]) / 2 : 0.15 + 0.04 * Math.sin(idleT * 1.4);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5 + coreAmp * 14, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(201,160,106,${0.5 + coreAmp * 0.5})`;
+      ctx.fill();
+
+      requestAnimationFrame(draw);
+    }
+
+    async function togglePlay() {
+      setupAnalyser();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      if (!playing) {
+        await audio.play();
+        playing = true;
+        ringWrap.classList.add('playing');
+      } else {
+        audio.pause();
+        playing = false;
+        ringWrap.classList.remove('playing');
+      }
+    }
+
+    canvas.addEventListener('click', togglePlay);
+    audio.addEventListener('ended', () => {
+      // loop ist an; falls loop entfernt wird, hier zurücksetzen:
+      // playing = false; ringWrap.classList.remove('playing');
+    });
+
+    draw();
+  </script>
+
+</body>
+</html>
