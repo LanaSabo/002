@@ -419,7 +419,7 @@
     canvas.addEventListener('click', togglePlay);
     audio.addEventListener('ended', () => {
       // loop ist an; falls loop entfernt wird, hier zurücksetzen:
-      // playing = false; ringWrap.classList.remove('playing');
+    playing = false; ringWrap.classList.remove('playing');
     });
 
     draw();
